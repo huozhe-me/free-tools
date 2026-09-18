@@ -39,7 +39,7 @@
  <div class="mb-4 p-3 rounded-xl border">
   <div class="font-semibold text-sm mb-2">AI API（可选）</div>
   <input id="apiEndpoint" placeholder="/api/generate" class="w-full border rounded-lg p-2 text-sm mb-2">
-  <button id="apiGenerate" class="w-full border rounded-lg p-2 text-sm">调用 AI API 生成</button><button id="allPrompts" class="w-full mt-2 border rounded-lg p-2 text-sm">生成全部图片 Prompt</button>
+  <button id="apiGenerate" class="w-full border rounded-lg p-2 text-sm">调用 AI API 生成内容</button><button id="genImages" class="w-full mt-2 bg-blue-600 text-white rounded-lg p-2 text-sm">批量生成图片</button><div id="imageProgress" class="text-[11px] text-slate-400 mt-2"></div><button id="allPrompts" class="w-full mt-2 border rounded-lg p-2 text-sm">生成全部图片 Prompt</button>
   <p class="text-[11px] text-slate-400 mt-2">不要把 OpenAI 等密钥放进浏览器。建议 endpoint 由你自己的 Worker/Server 代理。</p>
  </div>
  <div class="mb-3"><label class="text-sm">主题<select id="preset" class="mt-1 w-full border rounded-lg p-2"><option value="general">日常生活</option><option value="vehicle">汽车主题</option><option value="animal">动物主题</option><option value="food">食物主题</option></select></label></div>
@@ -123,6 +123,7 @@ function makePrompt(c){
  const styleEn={'柔和扁平插画':'soft flat vector illustration','儿童绘本水彩':'gentle children’s picture-book watercolor','软萌卡通':'cute soft cartoon','简洁真实物体':'simple realistic object illustration'}[style];
  return styleEn+', for a toddler educational alphabet flashcard. A single '+(c.word||'object')+' ('+(c.cn||'')+') centered, full object visible, friendly and recognizable, simple composition, warm low-stimulation palette, clean light background, no letters, no words, no watermark, no border, square composition.';
 }
+async function generateImages(){const endpoint=$('apiEndpoint').value.trim();if(!endpoint){alert('先填写图片 API Endpoint，例如 /api/image');return}const todo=cards.filter(c=>c.imagePrompt&&!c.image);if(!todo.length){alert('没有待生成图片的卡片。先生成 Prompt，或图片已经全部存在。');return}if(!confirm('将为 '+todo.length+' 张卡片调用图片 API，继续吗？'))return;for(let i=0;i<todo.length;i++){const c=todo[i];$('imageProgress').textContent='正在生成 '+c.letter+'（'+(i+1)+'/'+todo.length+'）';try{const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({letter:c.letter,word:c.word,cn:c.cn,prompt:c.imagePrompt})});if(!res.ok)throw new Error('HTTP '+res.status);const data=await res.json();if(!data.image)throw new Error('API 未返回 image');c.image=data.image;save();renderPreview()}catch(e){console.error(e);setStatus(c.letter+' 图片失败：'+e.message)}}$('imageProgress').textContent='图片生成完成';setStatus('批量图片生成完成')}
 async function callAI(){
  const endpoint=$('apiEndpoint').value.trim();if(!endpoint){alert('先填写 AI Endpoint，例如 /api/generate');return}
  const payload={topic:$('aiTopic').value.trim()||'日常生活',age:$('aiAge').value,style:$('aiStyle').value,cards:cards.map(c=>({letter:c.letter,word:c.word,cn:c.cn,sentence:c.sentence,imagePrompt:c.imagePrompt||''}))};
@@ -135,6 +136,7 @@ async function callAI(){
 }
 $('aiGenerate').onclick=generateLocal;
 $('apiGenerate').onclick=callAI;
+$('genImages').onclick=generateImages;
 $('allPrompts').onclick=()=>{cards.forEach(c=>c.imagePrompt=makePrompt(c));save();$('prompt').value=current().imagePrompt;setStatus('26 张图片 Prompt 已生成')};
 $('makePrompt').onclick=()=>{const c=current();c.imagePrompt=makePrompt(c);$('prompt').value=c.imagePrompt;save();setStatus('Prompt 已生成')};
 $('prompt').oninput=e=>{current().imagePrompt=e.target.value;save()};
