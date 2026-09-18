@@ -115,11 +115,16 @@ function renderEditor(){
  $('prompt').value=c.imagePrompt||'';
  renderQA();
 }
+const toddlerEasy=new Set('apple ant bear bus bread cat car cake dog door egg fish goat hat ice jam kid lion mom milk nose orange pig red sun toy van water yellow zoo'.split(' '));
 function renderQA(){
- const c=current(),w=(c.word||'').trim(),s=(c.sentence||'').trim(),flags=[];
- if(!w)flags.push('❌ 缺少英文单词'); if(w.length>9)flags.push('⚠️ 单词偏长');
- if(s.length>32)flags.push('⚠️ 句子偏长'); if(!c.image&&!c.emoji)flags.push('⚠️ 尚无图片');
- if(['Q','X','Z'].includes(c.letter))flags.push('ℹ️ '+c.letter+' 属于幼儿词汇里的特殊字母');
+ const c=current(),w=(c.word||'').trim().toLowerCase(),s=(c.sentence||'').trim(),flags=[];
+ if(!w)flags.push('❌ 缺少英文单词');
+ if(w.length>9)flags.push('⚠️ 单词偏长');
+ if(!toddlerEasy.has(w)&&w.length>6)flags.push('⚠️ 可能偏难：建议确认是否适合 2–5 岁');
+ if(s.length>32)flags.push('⚠️ 句子偏长');
+ if(!/^([A-Z]) is for [a-z]+[.!]$/.test(s)&&s.length>0)flags.push('ℹ️ 建议使用简单句式 “A is for apple.”');
+ if(!c.image&&!c.emoji)flags.push('⚠️ 尚无图片');
+ if(['Q','X','Z'].includes(c.letter))flags.push('ℹ️ '+c.letter+' 是特殊字母，建议人工复核');
  $('qa').innerHTML=(flags.length?flags:['✅ 基础检查通过']).map(x=>'<div>'+x+'</div>').join('');
 }
 function renderPreview(){
@@ -133,6 +138,9 @@ function renderPreview(){
  $('count').textContent=' · '+cards.length+' 张';
 }
 function render(){renderLetters();renderEditor();renderPreview()}
+function buildAIPrompt(topic,age,style){
+ return '为'+age+'岁幼儿制作主题为“'+topic+'”的 A-Z 字母卡。请输出严格 JSON，包含恰好26项，每项 letter/word/cn/sentence/imagePrompt。word 必须是具体、常见、容易画出来的英文词；优先 2–5 岁儿童能理解的高频词，尽量不超过9个字母。sentence 使用极简单句，优先“X is for word.”。Q/X/Z 如果只能使用特殊词，请选择儿童能理解且视觉明确的词，不要为了凑字母使用生僻词。imagePrompt 使用英文，单一主体、居中、完整可见、柔和低刺激配色、浅色背景、无文字无字母无水印。主题：'+topic+'；年龄：'+age+'；风格：'+style+'.';
+}
 function topicPreset(topic){if(topic.includes('汽车')||topic.includes('车辆'))return presets.vehicle;if(topic.includes('动物'))return presets.animal;if(topic.includes('食物')||topic.includes('吃'))return presets.food;return base.map(x=>[x[0],x[1],x[2]])}
 function generateLocal(){
  const topic=$('aiTopic').value.trim()||'日常生活',style=$('aiStyle').value,words=topicPreset(topic);
@@ -148,7 +156,8 @@ function makePrompt(c){
 async function generateImages(){const endpoint=$('imageEndpoint').value.trim();if(!endpoint){alert('先填写图片 API Endpoint，例如 /api/image');return}const todo=cards.filter(c=>c.imagePrompt&&!c.image);if(!todo.length){alert('没有待生成图片的卡片。先生成 Prompt，或图片已经全部存在。');return}if(!confirm('将为 '+todo.length+' 张卡片调用图片 API，继续吗？'))return;for(let i=0;i<todo.length;i++){const c=todo[i];$('imageProgress').textContent='正在生成 '+c.letter+'（'+(i+1)+'/'+todo.length+'）';try{const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({letter:c.letter,word:c.word,cn:c.cn,prompt:c.imagePrompt})});if(!res.ok)throw new Error('HTTP '+res.status);const data=await res.json();if(!data.image)throw new Error('API 未返回 image');c.image=data.image;save();renderPreview()}catch(e){console.error(e);setStatus(c.letter+' 图片失败：'+e.message)}}$('imageProgress').textContent='图片生成完成';setStatus('批量图片生成完成')}
 async function callAI(){
  const endpoint=$('apiEndpoint').value.trim();if(!endpoint){alert('先填写 AI Endpoint，例如 /api/generate');return}
- const payload={topic:$('aiTopic').value.trim()||'日常生活',age:$('aiAge').value,style:$('aiStyle').value,cards:cards.map(c=>({letter:c.letter,word:c.word,cn:c.cn,sentence:c.sentence,imagePrompt:c.imagePrompt||''}))};
+ const topic=$('aiTopic').value.trim()||'日常生活',age=$('aiAge').value,style=$('aiStyle').value;
+ const payload={topic,age,style,instructions:buildAIPrompt(topic,age,style),cards:cards.map(c=>({letter:c.letter,word:c.word,cn:c.cn,sentence:c.sentence,imagePrompt:c.imagePrompt||''}))};
  try{
   setStatus('正在调用 AI…');const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!res.ok)throw new Error('HTTP '+res.status);const data=await res.json();
