@@ -57,3 +57,45 @@ Endpoint 必须返回：
 
 API Key 必须放在服务端环境变量/Secret 中，不要写入 `index.html`、GitHub 前端代码或浏览器 localStorage。
 
+
+
+## Image Endpoint
+
+图片生成使用独立的 `/api/image` Endpoint，避免把内容生成请求误发到图片接口。
+
+### Request
+
+```json
+{
+  "letter": "A",
+  "word": "apple",
+  "cn": "苹果",
+  "prompt": "soft flat vector illustration..."
+}
+```
+
+### Response
+
+```json
+{
+  "image": "data:image/png;base64,..."
+}
+```
+
+前端会跳过已经存在图片的卡片，并按 A → Z 顺序逐张生成。
+
+## 前端配置
+
+- 内容 API：默认 `/api/generate`
+- 图片 API：默认 `/api/image`
+- 如果 Worker 与网页不是同域，可填写完整的 HTTPS Endpoint。
+- 浏览器端不要保存 OpenAI API Key。
+
+## 打印
+
+打印设置支持：
+- A4 4 张（2×2）
+- A4 9 张（3×3）
+- A4 12 张（4×3）
+- 可选封面
+- 浏览器打印对话框中选择“保存为 PDF”即可得到 PDF。
