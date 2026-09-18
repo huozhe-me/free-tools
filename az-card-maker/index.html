@@ -78,7 +78,8 @@
   <label class="flex items-center gap-2 mt-2 text-sm"><input id="printCover" type="checkbox" class="rounded">打印封面</label>
   <div id="printInfo" class="text-[11px] text-slate-400 mt-2"></div>
  </div>
- <button id="reset" class="mt-4 w-full border border-red-200 text-red-600 rounded-lg p-2 text-sm">恢复默认</button>
+ <button id="oneClick" class="mt-4 w-full bg-slate-900 text-white rounded-lg p-2 text-sm">一键生成整套 A-Z</button>
+ <p class="text-[11px] text-slate-400 mt-2">按当前主题生成 26 张内容与图片 Prompt；若已配置图片 API，可继续批量出图。</p>\n <button id="reset" class="mt-4 w-full border border-red-200 text-red-600 rounded-lg p-2 text-sm">恢复默认</button>
 </aside>
 <section>
  <div class="no-print mb-3 flex justify-between"><div class="font-semibold">预览 <span id="count" class="text-xs text-slate-400 font-normal"></span></div><div id="status" class="text-xs text-slate-400"></div></div>
@@ -155,7 +156,16 @@ async function callAI(){
   data.cards.forEach((x,i)=>{cards[i]={...cards[i],...x,letter:cards[i].letter}});save();render();setStatus('AI 内容已更新');
  }catch(e){alert('AI 调用失败：'+e.message)}
 }
+function oneClickGenerate(){
+ const topic=$('aiTopic').value.trim()||'日常生活';
+ const style=$('aiStyle').value;
+ if(!confirm('将按“'+topic+'”生成整套 A-Z，覆盖当前文字内容，但保留已有图片。继续吗？'))return;
+ const words=topicPreset(topic);
+ words.forEach((x,i)=>{cards[i]={...cards[i],letter:x[0],word:x[1],cn:x[2],sentence:style==='押韵句子'?x[0]+' is for '+x[1]+', hooray!':x[0]+' is for '+x[1]+'.',emoji:emojiByWord[x[1]]||cards[i].emoji||'✨'};cards[i].imagePrompt=makePrompt(cards[i]);});
+ sel='A';save();render();setStatus('整套 A-Z 已生成，可直接生成图片或打印');
+}
 $('aiGenerate').onclick=generateLocal;
+$('oneClick').onclick=oneClickGenerate;
 $('apiGenerate').onclick=callAI;
 $('genImages').onclick=generateImages;
 $('allPrompts').onclick=()=>{cards.forEach(c=>c.imagePrompt=makePrompt(c));save();$('prompt').value=current().imagePrompt;setStatus('26 张图片 Prompt 已生成')};
