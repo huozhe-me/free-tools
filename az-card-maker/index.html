@@ -1,5 +1,152 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>A-Z 字母卡工作台</title><script src="https://cdn.tailwindcss.com"></script><style>@media print{.no-print{display:none!important}body{background:#fff!important}#preview{display:grid!important;grid-template-columns:repeat(2,1fr);gap:8mm}.card{break-inside:avoid;box-shadow:none!important}}</style></head><body class="bg-slate-50 text-slate-800 min-h-screen"><header class="no-print sticky top-0 z-10 bg-white/95 border-b"><div class="max-w-7xl mx-auto p-4 flex justify-between items-center"><div><h1 class="text-xl font-bold">A-Z 字母卡制作器</h1><p class="text-xs text-slate-500">2–5 岁 · 批量编辑 · 主题 · 打印</p></div><div class="flex gap-2"><button id="imp" class="px-3 py-2 border rounded-lg text-sm">导入</button><button id="exp" class="px-3 py-2 border rounded-lg text-sm">导出</button><button onclick="print()" class="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm">打印</button><input id="fi" type="file" accept=".json" hidden></div></div></header><main class="max-w-7xl mx-auto p-4 grid lg:grid-cols-[330px_1fr] gap-5"><aside class="no-print bg-white p-4 rounded-2xl border h-fit lg:sticky lg:top-20"><h2 class="font-semibold mb-3">编辑卡片</h2><div id="letters" class="grid grid-cols-4 gap-1 mb-4"></div><div class="mb-4 p-3 rounded-xl bg-slate-50 border"><div class="font-semibold text-sm mb-2">AI 批量生成</div><input id="aiTopic" value="汽车" class="w-full border rounded-lg p-2 text-sm mb-2" placeholder="输入主题，例如：汽车 / 动物 / 日常生活"><div class="grid grid-cols-2 gap-2 mb-2"><select id="aiAge" class="border rounded-lg p-2 text-sm"><option>2–3 岁</option><option selected>2–5 岁</option><option>4–6 岁</option></select><select id="aiStyle" class="border rounded-lg p-2 text-sm"><option>简单单词</option><option>自然句子</option><option>押韵句子</option></select></div><button id="aiGenerate" class="w-full bg-slate-900 text-white rounded-lg p-2 text-sm">生成 A-Z 内容</button><p class="text-[11px] text-slate-400 mt-2">本地生成模板，不上传数据；生成后可逐张修改。</p></div><div class="mb-3"><label class="text-sm">主题<select id="preset" class="mt-1 w-full border rounded-lg p-2"><option value="general">日常生活</option><option value="vehicle">汽车主题</option><option value="animal">动物主题</option><option value="food">食物主题</option></select></label></div><div class="flex gap-2 mb-3"><button id="fill" class="flex-1 border rounded-lg p-2 text-sm">套用主题词</button><button id="copy" class="flex-1 border rounded-lg p-2 text-sm">复制上一张</button></div><div id="editor"></div><select id="theme" class="mt-5 w-full border rounded-lg p-2"><option value="soft">柔和</option><option value="pastel">低刺激彩色</option><option value="mono">黑白</option></select><button id="reset" class="mt-3 w-full border border-red-200 text-red-600 rounded-lg p-2 text-sm">恢复默认</button></aside><section><div class="no-print mb-3 font-semibold">预览 <span id="count" class="text-xs text-slate-400 font-normal"></span></div><div id="preview" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"></div></section></main><script>
-const base=[['A','apple','苹果','A is for apple.','🍎'],['B','bus','公交车','B is for bus.','🚌'],['C','car','汽车','C is for car.','🚗'],['D','dog','狗','D is for dog.','🐶'],['E','egg','鸡蛋','E is for egg.','🥚'],['F','fish','鱼','F is for fish.','🐟'],['G','go','出发','G is for go.','👣'],['H','hat','帽子','H is for hat.','🧢'],['I','ice','冰','I is for ice.','🧊'],['J','jam','果酱','J is for jam.','🍓'],['K','key','钥匙','K is for key.','🔑'],['L','leg','腿','L is for leg.','🦵'],['M','mom','妈妈','M is for mom.','👩'],['N','nose','鼻子','N is for nose.','👃'],['O','orange','橙子','O is for orange.','🍊'],['P','pig','猪','P is for pig.','🐷'],['Q','queen','女王','Q is for queen.','👑'],['R','red','红色','R is for red.','🔴'],['S','sun','太阳','S is for sun.','☀️'],['T','toy','玩具','T is for toy.','🧸'],['U','up','向上','U is for up.','⬆️'],['V','van','小货车','V is for van.','🚐'],['W','water','水','W is for water.','💧'],['X','x-ray','X光','X is for x-ray.','🩻'],['Y','yellow','黄色','Y is for yellow.','🟡'],['Z','zoo','动物园','Z is for zoo.','🦁']];const defaults=base.map(x=>({letter:x[0],word:x[1],cn:x[2],sentence:x[3],emoji:x[4],image:''}));let cards=JSON.parse(localStorage.getItem('az-cards')||'null')||defaults,sel='A';const $=id=>document.getElementById(id), esc=s=>String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));function save(){localStorage.setItem('az-cards',JSON.stringify(cards))}function current(){return cards.find(c=>c.letter===sel)||cards[0]}function renderLetters(){$('letters').innerHTML=cards.map(c=>`<button class="rounded p-2 text-sm font-semibold ${c.letter===sel?'bg-slate-900 text-white':'bg-slate-100'}" onclick="sel='${c.letter}';render()">${c.letter}</button>`).join('')}function renderEditor(){let c=current();$('editor').innerHTML=`<label class="text-sm">英文单词<input id="word" value="${esc(c.word)}" class="mt-1 mb-3 w-full border rounded-lg p-2"></label><label class="text-sm">中文<input id="cn" value="${esc(c.cn)}" class="mt-1 mb-3 w-full border rounded-lg p-2"></label><label class="text-sm">句子<textarea id="sentence" rows="2" class="mt-1 mb-3 w-full border rounded-lg p-2">${esc(c.sentence)}</textarea></label><label class="text-sm block">图片<label class="mt-1 h-24 border-2 border-dashed rounded-xl flex items-center justify-center cursor-pointer overflow-hidden">${c.image?`<img src="${c.image}" class="h-full max-w-full object-contain">`:'<span class="text-slate-400 text-sm">点击上传</span>'}<input id="image" type="file" accept="image/*" hidden></label></label>`;['word','cn','sentence'].forEach(id=>$(id).oninput=e=>{c[id]=e.target.value;save();renderPreview()});$('image').onchange=e=>{let r=new FileReader();r.onload=()=>{c.image=r.result;save();render()};r.readAsDataURL(e.target.files[0])}}function renderPreview(){let t=$('theme').value;$('preview').innerHTML=cards.map(c=>`<article class="card rounded-2xl border bg-white p-5 shadow-sm aspect-[4/5] flex flex-col ${t}"><div class="flex items-start justify-between"><div class="text-7xl font-black">${esc(c.letter)}</div><button class="no-print text-xs text-slate-400" onclick="sel='${c.letter}';renderEditor();window.scrollTo({top:0,behavior:'smooth'})">编辑</button></div><div class="flex-1 my-3 rounded-xl bg-slate-50 flex items-center justify-center overflow-hidden">${c.image?`<img src="${c.image}" class="max-h-full max-w-full object-contain">`:`<div class="text-7xl">${c.emoji}</div>`}</div><div class="text-2xl font-bold">${esc(c.word)}</div><div class="text-slate-500">${esc(c.cn)}</div><div class="text-sm mt-2 text-slate-600">${esc(c.sentence)}</div></article>`).join('');$('count').textContent=' · '+cards.length+' 张'}function render(){renderLetters();renderEditor();renderPreview()}
-$('aiGenerate').onclick=()=>{const topic=$('aiTopic').value.trim()||'日常生活';const age=$('aiAge').value;const style=$('aiStyle').value;const words=topic.includes('汽车')?presets.vehicle:topic.includes('动物')?presets.animal:topic.includes('食物')?presets.food:base.map(x=>[x[0],x[1],x[2]]);words.forEach((x,i)=>{cards[i].letter=x[0];cards[i].word=x[1];cards[i].cn=x[2];cards[i].sentence=style==='押韵句子'?x[0]+' is for '+x[1]+', hooray!':x[0]+' is for '+x[1]+'.'});sel='A';save();render();alert('已生成 '+topic+' 的 A-Z 内容（'+age+'，'+style+'）。');};
-const presets={vehicle:[['A','auto','汽车'],['B','bus','公交车'],['C','car','汽车'],['D','door','车门'],['E','engine','发动机'],['F','fuel','燃料'],['G','gas','汽油'],['H','horn','喇叭'],['I','ice','冰'],['J','jack','千斤顶'],['K','key','钥匙'],['L','light','车灯'],['M','map','地图'],['N','number','号码'],['O','oil','机油'],['P','park','停车'],['Q','quick','快速'],['R','road','道路'],['S','seat','座椅'],['T','tire','轮胎'],['U','up','向上'],['V','van','小货车'],['W','wheel','车轮'],['X','x-ray','X光'],['Y','yellow','黄色'],['Z','zoom','快速前进']],animal:[['A','ant','蚂蚁'],['B','bear','熊'],['C','cat','猫'],['D','dog','狗'],['E','elephant','大象'],['F','fox','狐狸'],['G','goat','山羊'],['H','horse','马'],['I','iguana','鬣蜥'],['J','jellyfish','水母'],['K','koala','考拉'],['L','lion','狮子'],['M','monkey','猴子'],['N','nest','鸟巢'],['O','owl','猫头鹰'],['P','pig','猪'],['Q','quail','鹌鹑'],['R','rabbit','兔子'],['S','sheep','绵羊'],['T','tiger','老虎'],['U','urchin','海胆'],['V','viper','蝰蛇'],['W','whale','鲸鱼'],['X','x-ray','X光'],['Y','yak','牦牛'],['Z','zebra','斑马']],food:[['A','apple','苹果'],['B','bread','面包'],['C','cake','蛋糕'],['D','donut','甜甜圈'],['E','egg','鸡蛋'],['F','fish','鱼'],['G','grape','葡萄'],['H','honey','蜂蜜'],['I','ice','冰'],['J','jam','果酱'],['K','kiwi','猕猴桃'],['L','lemon','柠檬'],['M','milk','牛奶'],['N','noodle','面条'],['O','orange','橙子'],['P','pear','梨'],['Q','quiche','咸派'],['R','rice','米饭'],['S','soup','汤'],['T','toast','吐司'],['U','ube','紫薯'],['V','vanilla','香草'],['W','water','水'],['X','x-ray','X光'],['Y','yogurt','酸奶'],['Z','zucchini','西葫芦']]};
-$('fill').onclick=()=>{const p=presets[$('preset').value];p.forEach((x,i)=>{cards[i].letter=x[0];cards[i].word=x[1];cards[i].cn=x[2];cards[i].sentence=x[0]+' is for '+x[1]+'.'});sel='A';save();render()};$('copy').onclick=()=>{const i=cards.findIndex(c=>c.letter===sel);if(i>0){cards[i].word=cards[i-1].word;cards[i].cn=cards[i-1].cn;cards[i].sentence=cards[i-1].sentence;cards[i].image=cards[i-1].image;save();render()}}$('theme').onchange=renderPreview;$('reset').onclick=()=>{if(confirm('恢复默认 A-Z？')){cards=defaults.map(x=>({...x}));sel='A';save();render()}};$('exp').onclick=()=>{let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(cards,null,2)],{type:'application/json'}));a.download='az-cards.json';a.click()};$('imp').onclick=()=>$('fi').click();$('fi').onchange=e=>{let r=new FileReader();r.onload=()=>{try{cards=JSON.parse(r.result);sel=cards[0].letter;save();render()}catch{alert('JSON 格式错误')}};r.readAsText(e.target.files[0])};render();</script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A-Z 字母卡制作器</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+:root{--accent:#2563eb}
+@media print{
+ .no-print{display:none!important}body{background:#fff!important}.print-a4{width:210mm;min-height:297mm}
+ #preview{display:grid!important;grid-template-columns:repeat(var(--print-cols,2),1fr)!important;gap:6mm!important}
+ .card{break-inside:avoid;box-shadow:none!important;border:1px solid #ddd!important}
+}
+.card.pastel{background:linear-gradient(145deg,#fff,#f8fafc)}
+.card.mono{filter:grayscale(1)}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+<header class="no-print sticky top-0 z-20 bg-white/95 backdrop-blur border-b">
+ <div class="max-w-7xl mx-auto p-4 flex justify-between items-center gap-3">
+  <div><h1 class="text-xl font-bold">A-Z 字母卡制作器</h1><p class="text-xs text-slate-500">内容 → 质检 → 图片 Prompt → 打印</p></div>
+  <div class="flex gap-2"><button id="imp" class="px-3 py-2 border rounded-lg text-sm">导入</button><button id="exp" class="px-3 py-2 border rounded-lg text-sm">导出</button><button id="expPrompt" class="px-3 py-2 border rounded-lg text-sm">导出 Prompt</button><button id="printBtn" class="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm">打印</button><input id="fi" type="file" accept=".json" hidden></div>
+ </div>
+</header>
+<main class="max-w-7xl mx-auto p-4 grid lg:grid-cols-[350px_1fr] gap-5">
+<aside class="no-print bg-white p-4 rounded-2xl border h-fit lg:sticky lg:top-20">
+ <h2 class="font-semibold mb-3">编辑卡片</h2>
+ <div id="letters" class="grid grid-cols-4 gap-1 mb-4"></div>
+ <div class="mb-4 p-3 rounded-xl bg-slate-50 border">
+  <div class="font-semibold text-sm mb-2">AI 内容生成</div>
+  <input id="aiTopic" value="汽车" class="w-full border rounded-lg p-2 text-sm mb-2" placeholder="汽车 / 动物 / 日常生活">
+  <div class="grid grid-cols-2 gap-2 mb-2">
+   <select id="aiAge" class="border rounded-lg p-2 text-sm"><option>2–3 岁</option><option selected>2–5 岁</option><option>4–6 岁</option></select>
+   <select id="aiStyle" class="border rounded-lg p-2 text-sm"><option>简单单词</option><option>自然句子</option><option>押韵句子</option></select>
+  </div>
+  <button id="aiGenerate" class="w-full bg-slate-900 text-white rounded-lg p-2 text-sm">生成 A-Z 内容</button>
+  <p class="text-[11px] text-slate-400 mt-2">当前为本地模板生成；可配置 API 后接入真正的 AI。</p>
+ </div>
+ <div class="mb-4 p-3 rounded-xl border">
+  <div class="font-semibold text-sm mb-2">AI API（可选）</div>
+  <input id="apiEndpoint" placeholder="/api/generate" class="w-full border rounded-lg p-2 text-sm mb-2">
+  <button id="apiGenerate" class="w-full border rounded-lg p-2 text-sm">调用 AI API 生成</button>
+  <p class="text-[11px] text-slate-400 mt-2">不要把 OpenAI 等密钥放进浏览器。建议 endpoint 由你自己的 Worker/Server 代理。</p>
+ </div>
+ <div class="mb-3"><label class="text-sm">主题<select id="preset" class="mt-1 w-full border rounded-lg p-2"><option value="general">日常生活</option><option value="vehicle">汽车主题</option><option value="animal">动物主题</option><option value="food">食物主题</option></select></label></div>
+ <div class="flex gap-2 mb-3"><button id="fill" class="flex-1 border rounded-lg p-2 text-sm">套用主题词</button><button id="copy" class="flex-1 border rounded-lg p-2 text-sm">复制上一张</button></div>
+ <div id="editor"></div>
+ <div class="mt-5 p-3 rounded-xl bg-slate-50 border">
+  <div class="font-semibold text-sm mb-2">图片 Prompt</div>
+  <select id="imageStyle" class="w-full border rounded-lg p-2 text-sm mb-2"><option>柔和扁平插画</option><option>儿童绘本水彩</option><option>软萌卡通</option><option>简洁真实物体</option></select>
+  <button id="makePrompt" class="w-full border rounded-lg p-2 text-sm">生成当前卡片 Prompt</button>
+  <textarea id="prompt" rows="5" class="mt-2 w-full border rounded-lg p-2 text-xs" placeholder="图片 Prompt 会出现在这里"></textarea>
+  <button id="copyPrompt" class="mt-2 w-full bg-slate-100 rounded-lg p-2 text-xs">复制 Prompt</button>
+ </div>
+ <div class="mt-4 p-3 rounded-xl border">
+  <div class="font-semibold text-sm mb-2">内容质检</div><div id="qa" class="text-xs leading-6"></div>
+ </div>
+ <div class="mt-4 p-3 rounded-xl border">
+  <div class="font-semibold text-sm mb-2">打印设置</div>
+  <select id="printCols" class="w-full border rounded-lg p-2 text-sm"><option value="2">A4：2 列</option><option value="3">A4：3 列</option><option value="4">A4：4 列</option></select>
+ </div>
+ <button id="reset" class="mt-4 w-full border border-red-200 text-red-600 rounded-lg p-2 text-sm">恢复默认</button>
+</aside>
+<section>
+ <div class="no-print mb-3 flex justify-between"><div class="font-semibold">预览 <span id="count" class="text-xs text-slate-400 font-normal"></span></div><div id="status" class="text-xs text-slate-400"></div></div>
+ <div id="preview" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+</section>
+</main>
+<script>
+const base=[['A','apple','苹果','A is for apple.','🍎'],['B','bus','公交车','B is for bus.','🚌'],['C','car','汽车','C is for car.','🚗'],['D','dog','狗','D is for dog.','🐶'],['E','egg','鸡蛋','E is for egg.','🥚'],['F','fish','鱼','F is for fish.','🐟'],['G','go','出发','G is for go.','👣'],['H','hat','帽子','H is for hat.','🧢'],['I','ice','冰','I is for ice.','🧊'],['J','jam','果酱','J is for jam.','🍓'],['K','key','钥匙','K is for key.','🔑'],['L','leg','腿','L is for leg.','🦵'],['M','mom','妈妈','M is for mom.','👩'],['N','nose','鼻子','N is for nose.','👃'],['O','orange','橙子','O is for orange.','🍊'],['P','pig','猪','P is for pig.','🐷'],['Q','queen','女王','Q is for queen.','👑'],['R','red','红色','R is for red.','🔴'],['S','sun','太阳','S is for sun.','☀️'],['T','toy','玩具','T is for toy.','🧸'],['U','up','向上','U is for up.','⬆️'],['V','van','小货车','V is for van.','🚐'],['W','water','水','W is for water.','💧'],['X','x-ray','X光','X is for x-ray.','🩻'],['Y','yellow','黄色','Y is for yellow.','🟡'],['Z','zoo','动物园','Z is for zoo.','🦁']];
+const presets={
+vehicle:[['A','auto','汽车'],['B','bus','公交车'],['C','car','汽车'],['D','door','车门'],['E','engine','发动机'],['F','fuel','燃料'],['G','gas','汽油'],['H','horn','喇叭'],['I','ice','冰'],['J','jack','千斤顶'],['K','kid','孩子'],['L','light','车灯'],['M','map','地图'],['N','number','号码'],['O','oil','机油'],['P','park','停车'],['Q','quick','快速'],['R','road','道路'],['S','seat','座椅'],['T','tire','轮胎'],['U','up','向上'],['V','van','小货车'],['W','wheel','车轮'],['X','x-ray','X光'],['Y','yellow','黄色'],['Z','zoom','快速前进']],
+animal:[['A','ant','蚂蚁'],['B','bear','熊'],['C','cat','猫'],['D','dog','狗'],['E','elephant','大象'],['F','fox','狐狸'],['G','goat','山羊'],['H','horse','马'],['I','iguana','鬣蜥'],['J','jellyfish','水母'],['K','koala','考拉'],['L','lion','狮子'],['M','monkey','猴子'],['N','nest','鸟巢'],['O','owl','猫头鹰'],['P','pig','猪'],['Q','quail','鹌鹑'],['R','rabbit','兔子'],['S','sheep','绵羊'],['T','tiger','老虎'],['U','urchin','海胆'],['V','viper','蝰蛇'],['W','whale','鲸鱼'],['X','x-ray','X光'],['Y','yak','牦牛'],['Z','zebra','斑马']],
+food:[['A','apple','苹果'],['B','bread','面包'],['C','cake','蛋糕'],['D','donut','甜甜圈'],['E','egg','鸡蛋'],['F','fish','鱼'],['G','grape','葡萄'],['H','honey','蜂蜜'],['I','ice','冰'],['J','jam','果酱'],['K','kiwi','猕猴桃'],['L','lemon','柠檬'],['M','milk','牛奶'],['N','noodle','面条'],['O','orange','橙子'],['P','pear','梨'],['Q','quiche','咸派'],['R','rice','米饭'],['S','soup','汤'],['T','toast','吐司'],['U','ube','紫薯'],['V','vanilla','香草'],['W','water','水'],['X','x-ray','X光'],['Y','yogurt','酸奶'],['Z','zucchini','西葫芦']]
+};
+const emojiByWord={apple:'🍎',bus:'🚌',car:'🚗',dog:'🐶',egg:'🥚',fish:'🐟',door:'🚪',engine:'⚙️',fuel:'⛽',gas:'⛽',horn:'📣',ice:'🧊',jack:'🔧',kid:'🧒',light:'💡',map:'🗺️',number:'🔢',oil:'🛢️',park:'🅿️',quick:'⚡',road:'🛣️',seat:'💺',tire:'🛞',up:'⬆️',van:'🚐',wheel:'🛞',zoom:'🔭'};
+const defaults=base.map(x=>({letter:x[0],word:x[1],cn:x[2],sentence:x[3],emoji:x[4],image:'',imagePrompt:''}));
+let cards=loadCards(),sel='A';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function loadCards(){try{const x=JSON.parse(localStorage.getItem('az-cards')||'null');if(Array.isArray(x)&&x.length===26)return x.map((c,i)=>({...defaults[i],...c}));}catch(e){}return defaults.map(x=>({...x}));}
+function save(){localStorage.setItem('az-cards',JSON.stringify(cards))}
+function current(){return cards.find(c=>c.letter===sel)||cards[0]}
+function setStatus(s){$('status').textContent=s;setTimeout(()=>{$('status').textContent=''},2500)}
+function renderLetters(){$('letters').innerHTML=cards.map(c=>'<button class="rounded p-2 text-sm font-semibold '+(c.letter===sel?'bg-slate-900 text-white':'bg-slate-100')+'" data-letter="'+c.letter+'">'+c.letter+'</button>').join('');document.querySelectorAll('#letters button').forEach(b=>b.onclick=()=>{sel=b.dataset.letter;render()})}
+function renderEditor(){
+ const c=current();
+ $('editor').innerHTML='<label class="text-sm">英文单词<input id="word" value="'+esc(c.word)+'" class="mt-1 mb-3 w-full border rounded-lg p-2"></label>'+
+ '<label class="text-sm">中文<input id="cn" value="'+esc(c.cn)+'" class="mt-1 mb-3 w-full border rounded-lg p-2"></label>'+
+ '<label class="text-sm">句子<textarea id="sentence" rows="2" class="mt-1 mb-3 w-full border rounded-lg p-2">'+esc(c.sentence)+'</textarea></label>'+
+ '<label class="text-sm block">图片<label class="mt-1 h-24 border-2 border-dashed rounded-xl flex items-center justify-center cursor-pointer overflow-hidden">'+(c.image?'<img src="'+c.image+'" class="h-full max-w-full object-contain">':'<span class="text-slate-400 text-sm">点击上传</span>')+'<input id="image" type="file" accept="image/*" hidden></label></label>';
+ ['word','cn','sentence'].forEach(id=>$(id).oninput=e=>{c[id]=e.target.value;save();renderPreview();renderQA()});
+ $('image').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{c.image=r.result;save();render()};r.readAsDataURL(f)};
+ $('prompt').value=c.imagePrompt||'';
+ renderQA();
+}
+function renderQA(){
+ const c=current(),w=(c.word||'').trim(),s=(c.sentence||'').trim(),flags=[];
+ if(!w)flags.push('❌ 缺少英文单词'); if(w.length>9)flags.push('⚠️ 单词偏长');
+ if(s.length>32)flags.push('⚠️ 句子偏长'); if(!c.image&&!c.emoji)flags.push('⚠️ 尚无图片');
+ if(['Q','X','Z'].includes(c.letter))flags.push('ℹ️ '+c.letter+' 属于幼儿词汇里的特殊字母');
+ $('qa').innerHTML=(flags.length?flags:['✅ 基础检查通过']).map(x=>'<div>'+x+'</div>').join('');
+}
+function renderPreview(){
+ const t=$('theme')?.value||'soft';
+ $('preview').innerHTML=cards.map(c=>'<article class="card rounded-2xl border bg-white p-5 shadow-sm aspect-[4/5] flex flex-col '+t+'">'+
+ '<div class="flex items-start justify-between"><div class="text-7xl font-black">'+esc(c.letter)+'</div><button class="no-print text-xs text-slate-400 edit" data-letter="'+c.letter+'">编辑</button></div>'+
+ '<div class="flex-1 my-3 rounded-xl bg-slate-50 flex items-center justify-center overflow-hidden">'+(c.image?'<img src="'+c.image+'" class="max-h-full max-w-full object-contain">':'<div class="text-7xl">'+esc(c.emoji||emojiByWord[c.word]||'✨')+'</div>')+'</div>'+
+ '<div class="text-2xl font-bold">'+esc(c.word)+'</div><div class="text-slate-500">'+esc(c.cn)+'</div><div class="text-sm mt-2 text-slate-600">'+esc(c.sentence)+'</div></article>').join('');
+ document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{sel=b.dataset.letter;renderEditor();window.scrollTo({top:0,behavior:'smooth'})});
+ $('count').textContent=' · '+cards.length+' 张';
+}
+function render(){renderLetters();renderEditor();renderPreview()}
+function topicPreset(topic){if(topic.includes('汽车')||topic.includes('车辆'))return presets.vehicle;if(topic.includes('动物'))return presets.animal;if(topic.includes('食物')||topic.includes('吃'))return presets.food;return base.map(x=>[x[0],x[1],x[2]])}
+function generateLocal(){
+ const topic=$('aiTopic').value.trim()||'日常生活',style=$('aiStyle').value,words=topicPreset(topic);
+ if(!confirm('生成会覆盖当前 26 张卡片的文字内容，已上传图片会保留。继续吗？'))return;
+ words.forEach((x,i)=>{cards[i].letter=x[0];cards[i].word=x[1];cards[i].cn=x[2];cards[i].sentence=style==='押韵句子'?x[0]+' is for '+x[1]+', hooray!':x[0]+' is for '+x[1]+'.';cards[i].emoji=emojiByWord[x[1]]||cards[i].emoji||'✨';});
+ sel='A';save();render();setStatus('已生成 '+topic+' A-Z 内容');
+}
+function makePrompt(c){
+ const style=$('imageStyle').value;
+ const styleEn={'柔和扁平插画':'soft flat vector illustration','儿童绘本水彩':'gentle children’s picture-book watercolor','软萌卡通':'cute soft cartoon','简洁真实物体':'simple realistic object illustration'}[style];
+ return styleEn+', for a toddler educational alphabet flashcard. A single '+(c.word||'object')+' ('+(c.cn||'')+') centered, full object visible, friendly and recognizable, simple composition, warm low-stimulation palette, clean light background, no letters, no words, no watermark, no border, square composition.';
+}
+async function callAI(){
+ const endpoint=$('apiEndpoint').value.trim();if(!endpoint){alert('先填写 AI Endpoint，例如 /api/generate');return}
+ const payload={topic:$('aiTopic').value.trim()||'日常生活',age:$('aiAge').value,style:$('aiStyle').value,cards:cards.map(c=>({letter:c.letter,word:c.word,cn:c.cn,sentence:c.sentence,imagePrompt:c.imagePrompt||''}))};
+ try{
+  setStatus('正在调用 AI…');const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(!res.ok)throw new Error('HTTP '+res.status);const data=await res.json();
+  if(!Array.isArray(data.cards)||data.cards.length!==26)throw new Error('API 返回需要 cards[26]');
+  data.cards.forEach((x,i)=>{cards[i]={...cards[i],...x,letter:cards[i].letter}});save();render();setStatus('AI 内容已更新');
+ }catch(e){alert('AI 调用失败：'+e.message)}
+}
+$('aiGenerate').onclick=generateLocal;
+$('apiGenerate').onclick=callAI;
+$('makePrompt').onclick=()=>{const c=current();c.imagePrompt=makePrompt(c);$('prompt').value=c.imagePrompt;save();setStatus('Prompt 已生成')};
+$('prompt').oninput=e=>{current().imagePrompt=e.target.value;save()};
+$('copyPrompt').onclick=async()=>{const p=$('prompt').value;if(!p)return;await navigator.clipboard.writeText(p);setStatus('Prompt 已复制')};
+$('expPrompt').onclick=()=>{const out=cards.map(c=>({letter:c.letter,word:c.word,cn:c.cn,imagePrompt:c.imagePrompt||makePrompt(c)}));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));a.download='az-image-prompts.json';a.click()};
+$('fill').onclick=()=>{const p=presets[$('preset').value];p.forEach((x,i)=>{cards[i].letter=x[0];cards[i].word=x[1];cards[i].cn=x[2];cards[i].sentence=x[0]+' is for '+x[1]+'.';cards[i].emoji=emojiByWord[x[1]]||cards[i].emoji||'✨'});sel='A';save();render()};
+$('copy').onclick=()=>{const i=cards.findIndex(c=>c.letter===sel);if(i>0){cards[i].word=cards[i-1].word;cards[i].cn=cards[i-1].cn;cards[i].sentence=cards[i-1].sentence;cards[i].image=cards[i-1].image;cards[i].imagePrompt=cards[i-1].imagePrompt;save();render()}};
+$('printBtn').onclick=()=>window.print();
+$('printCols').onchange=e=>document.documentElement.style.setProperty('--print-cols',e.target.value);
+$('reset').onclick=()=>{if(confirm('恢复默认 A-Z？')){cards=defaults.map(x=>({...x}));sel='A';save();render()}};
+$('exp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(cards,null,2)],{type:'application/json'}));a.download='az-cards.json';a.click()};
+$('imp').onclick=()=>$('fi').click();
+$('fi').onchange=e=>{const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!Array.isArray(x)||x.length!==26)throw new Error();cards=x.map((c,i)=>({...defaults[i],...c}));sel=cards[0].letter;save();render();setStatus('导入成功')}catch{alert('JSON 必须是 26 张卡片的数组')}};r.readAsText(e.target.files[0])};
+render();
+</script>
+</body></html>
