@@ -6,11 +6,18 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 :root{--accent:#2563eb}
+@page{size:A4 portrait;margin:8mm}
 @media print{
- .no-print{display:none!important}body{background:#fff!important}.print-a4{width:210mm;min-height:297mm}
- #preview{display:grid!important;grid-template-columns:repeat(var(--print-cols,2),1fr)!important;gap:6mm!important}
- .card{break-inside:avoid;box-shadow:none!important;border:1px solid #ddd!important}
+ .no-print{display:none!important}
+ body{background:#fff!important}
+ main{display:block!important;padding:0!important;margin:0!important;max-width:none!important}
+ section{width:100%!important}
+ #preview{display:grid!important;grid-template-columns:repeat(var(--print-cols,2),1fr)!important;gap:5mm!important;width:100%!important}
+ .card{break-inside:avoid;box-shadow:none!important;border:1px solid #ddd!important;aspect-ratio:auto!important;height:calc((297mm - 16mm - (var(--print-rows,1) - 1)*5mm)/var(--print-rows,1))!important}
+ .card img{max-height:100%!important}
+ .print-cover{display:flex!important;break-after:page}
 }
+.print-cover{display:none}
 .card.pastel{background:linear-gradient(145deg,#fff,#f8fafc)}
 .card.mono{filter:grayscale(1)}
 </style>
@@ -38,7 +45,8 @@
  </div>
  <div class="mb-4 p-3 rounded-xl border">
   <div class="font-semibold text-sm mb-2">AI API（可选）</div>
-  <input id="apiEndpoint" placeholder="/api/generate" class="w-full border rounded-lg p-2 text-sm mb-2">
+  <input id="apiEndpoint" value="/api/generate" placeholder="/api/generate" class="w-full border rounded-lg p-2 text-sm mb-2">
+  <input id="imageEndpoint" value="/api/image" placeholder="/api/image" class="w-full border rounded-lg p-2 text-sm mb-2">
   <button id="apiGenerate" class="w-full border rounded-lg p-2 text-sm">调用 AI API 生成内容</button><button id="genImages" class="w-full mt-2 bg-blue-600 text-white rounded-lg p-2 text-sm">批量生成图片</button><div id="imageProgress" class="text-[11px] text-slate-400 mt-2"></div><button id="allPrompts" class="w-full mt-2 border rounded-lg p-2 text-sm">生成全部图片 Prompt</button>
   <p class="text-[11px] text-slate-400 mt-2">不要把 OpenAI 等密钥放进浏览器。建议 endpoint 由你自己的 Worker/Server 代理。</p>
  </div>
@@ -57,12 +65,15 @@
  </div>
  <div class="mt-4 p-3 rounded-xl border">
   <div class="font-semibold text-sm mb-2">打印设置</div>
-  <select id="printCols" class="w-full border rounded-lg p-2 text-sm"><option value="2">A4：2 列</option><option value="3">A4：3 列</option><option value="4">A4：4 列</option></select>
+  <select id="printCols" class="w-full border rounded-lg p-2 text-sm"><option value="2">A4：4 张（2×2）</option><option value="3">A4：9 张（3×3）</option><option value="4">A4：12 张（4×3）</option></select>
+  <label class="flex items-center gap-2 mt-2 text-sm"><input id="printCover" type="checkbox" class="rounded">打印封面</label>
+  <div id="printInfo" class="text-[11px] text-slate-400 mt-2"></div>
  </div>
  <button id="reset" class="mt-4 w-full border border-red-200 text-red-600 rounded-lg p-2 text-sm">恢复默认</button>
 </aside>
 <section>
  <div class="no-print mb-3 flex justify-between"><div class="font-semibold">预览 <span id="count" class="text-xs text-slate-400 font-normal"></span></div><div id="status" class="text-xs text-slate-400"></div></div>
+ <div id="printCoverPage" class="print-cover min-h-[281mm] items-center justify-center text-center"><div><div class="text-8xl font-black">A–Z</div><div id="coverTitle" class="text-3xl font-bold mt-5">我的字母卡</div><div id="coverTopic" class="text-lg text-slate-500 mt-2"></div><div class="mt-10 text-sm text-slate-400">26 个字母 · 26 个单词</div></div></div>
  <div id="preview" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
 </section>
 </main>
@@ -116,14 +127,14 @@ function generateLocal(){
  const topic=$('aiTopic').value.trim()||'日常生活',style=$('aiStyle').value,words=topicPreset(topic);
  if(!confirm('生成会覆盖当前 26 张卡片的文字内容，已上传图片会保留。继续吗？'))return;
  words.forEach((x,i)=>{cards[i].letter=x[0];cards[i].word=x[1];cards[i].cn=x[2];cards[i].sentence=style==='押韵句子'?x[0]+' is for '+x[1]+', hooray!':x[0]+' is for '+x[1]+'.';cards[i].emoji=emojiByWord[x[1]]||cards[i].emoji||'✨';});
- sel='A';save();render();setStatus('已生成 '+topic+' A-Z 内容');
+ sel='A';save();updatePrintSettings();render();setStatus('已生成 '+topic+' A-Z 内容');
 }
 function makePrompt(c){
  const style=$('imageStyle').value;
  const styleEn={'柔和扁平插画':'soft flat vector illustration','儿童绘本水彩':'gentle children’s picture-book watercolor','软萌卡通':'cute soft cartoon','简洁真实物体':'simple realistic object illustration'}[style];
  return styleEn+', for a toddler educational alphabet flashcard. A single '+(c.word||'object')+' ('+(c.cn||'')+') centered, full object visible, friendly and recognizable, simple composition, warm low-stimulation palette, clean light background, no letters, no words, no watermark, no border, square composition.';
 }
-async function generateImages(){const endpoint=$('apiEndpoint').value.trim();if(!endpoint){alert('先填写图片 API Endpoint，例如 /api/image');return}const todo=cards.filter(c=>c.imagePrompt&&!c.image);if(!todo.length){alert('没有待生成图片的卡片。先生成 Prompt，或图片已经全部存在。');return}if(!confirm('将为 '+todo.length+' 张卡片调用图片 API，继续吗？'))return;for(let i=0;i<todo.length;i++){const c=todo[i];$('imageProgress').textContent='正在生成 '+c.letter+'（'+(i+1)+'/'+todo.length+'）';try{const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({letter:c.letter,word:c.word,cn:c.cn,prompt:c.imagePrompt})});if(!res.ok)throw new Error('HTTP '+res.status);const data=await res.json();if(!data.image)throw new Error('API 未返回 image');c.image=data.image;save();renderPreview()}catch(e){console.error(e);setStatus(c.letter+' 图片失败：'+e.message)}}$('imageProgress').textContent='图片生成完成';setStatus('批量图片生成完成')}
+async function generateImages(){const endpoint=$('imageEndpoint').value.trim();if(!endpoint){alert('先填写图片 API Endpoint，例如 /api/image');return}const todo=cards.filter(c=>c.imagePrompt&&!c.image);if(!todo.length){alert('没有待生成图片的卡片。先生成 Prompt，或图片已经全部存在。');return}if(!confirm('将为 '+todo.length+' 张卡片调用图片 API，继续吗？'))return;for(let i=0;i<todo.length;i++){const c=todo[i];$('imageProgress').textContent='正在生成 '+c.letter+'（'+(i+1)+'/'+todo.length+'）';try{const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({letter:c.letter,word:c.word,cn:c.cn,prompt:c.imagePrompt})});if(!res.ok)throw new Error('HTTP '+res.status);const data=await res.json();if(!data.image)throw new Error('API 未返回 image');c.image=data.image;save();renderPreview()}catch(e){console.error(e);setStatus(c.letter+' 图片失败：'+e.message)}}$('imageProgress').textContent='图片生成完成';setStatus('批量图片生成完成')}
 async function callAI(){
  const endpoint=$('apiEndpoint').value.trim();if(!endpoint){alert('先填写 AI Endpoint，例如 /api/generate');return}
  const payload={topic:$('aiTopic').value.trim()||'日常生活',age:$('aiAge').value,style:$('aiStyle').value,cards:cards.map(c=>({letter:c.letter,word:c.word,cn:c.cn,sentence:c.sentence,imagePrompt:c.imagePrompt||''}))};
@@ -145,7 +156,18 @@ $('expPrompt').onclick=()=>{const out=cards.map(c=>({letter:c.letter,word:c.word
 $('fill').onclick=()=>{const p=presets[$('preset').value];p.forEach((x,i)=>{cards[i].letter=x[0];cards[i].word=x[1];cards[i].cn=x[2];cards[i].sentence=x[0]+' is for '+x[1]+'.';cards[i].emoji=emojiByWord[x[1]]||cards[i].emoji||'✨'});sel='A';save();render()};
 $('copy').onclick=()=>{const i=cards.findIndex(c=>c.letter===sel);if(i>0){cards[i].word=cards[i-1].word;cards[i].cn=cards[i-1].cn;cards[i].sentence=cards[i-1].sentence;cards[i].image=cards[i-1].image;cards[i].imagePrompt=cards[i-1].imagePrompt;save();render()}};
 $('printBtn').onclick=()=>window.print();
-$('printCols').onchange=e=>document.documentElement.style.setProperty('--print-cols',e.target.value);
+function updatePrintSettings(){
+ const cols=+$('printCols').value||2;
+ const rows=cols===2?2:cols===3?3:3;
+ const perPage=cols*rows;
+ document.documentElement.style.setProperty('--print-cols',cols);
+ document.documentElement.style.setProperty('--print-rows',rows);
+ const pages=Math.ceil(cards.length/perPage);
+ $('printInfo').textContent='每页 '+perPage+' 张 · 共 '+pages+' 页'+($('printCover').checked?'（含封面）':'');
+ $('printCoverPage').style.display=$('printCover').checked?'flex':'none';
+}
+$('printCols').onchange=updatePrintSettings;
+$('printCover').onchange=updatePrintSettings;
 $('reset').onclick=()=>{if(confirm('恢复默认 A-Z？')){cards=defaults.map(x=>({...x}));sel='A';save();render()}};
 $('exp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(cards,null,2)],{type:'application/json'}));a.download='az-cards.json';a.click()};
 $('imp').onclick=()=>$('fi').click();
