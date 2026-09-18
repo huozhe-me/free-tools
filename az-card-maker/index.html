@@ -20,6 +20,15 @@
 .print-cover{display:none}
 .card.pastel{background:linear-gradient(145deg,#fff,#f8fafc)}
 .card.mono{filter:grayscale(1)}
+.print-card{position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:24px;overflow:hidden}
+.print-card .letter{font-size:clamp(56px,8vw,96px);line-height:.9;font-weight:900;letter-spacing:-.05em}
+.print-card .word{font-size:clamp(24px,3vw,38px);font-weight:800;line-height:1.05}
+.print-card .cn{font-size:clamp(14px,1.7vw,20px);color:#64748b}
+.print-card .sentence{font-size:clamp(12px,1.4vw,17px);line-height:1.35;color:#475569}
+.print-card .art{background:#f8fafc;border-radius:20px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.print-card .art img{width:100%;height:100%;object-fit:contain}
+.print-card .badge{position:absolute;right:14px;top:14px;font-size:10px;letter-spacing:.12em;color:#94a3b8}
+@media print{.print-card{border:1px solid #cbd5e1!important;border-radius:12px!important;padding:5mm!important}.print-card .art{border-radius:8px!important}}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
@@ -114,10 +123,11 @@ function renderQA(){
 }
 function renderPreview(){
  const t=$('theme')?.value||'soft';
- $('preview').innerHTML=cards.map(c=>'<article class="card rounded-2xl border bg-white p-5 shadow-sm aspect-[4/5] flex flex-col '+t+'">'+
- '<div class="flex items-start justify-between"><div class="text-7xl font-black">'+esc(c.letter)+'</div><button class="no-print text-xs text-slate-400 edit" data-letter="'+c.letter+'">编辑</button></div>'+
- '<div class="flex-1 my-3 rounded-xl bg-slate-50 flex items-center justify-center overflow-hidden">'+(c.image?'<img src="'+c.image+'" class="max-h-full max-w-full object-contain">':'<div class="text-7xl">'+esc(c.emoji||emojiByWord[c.word]||'✨')+'</div>')+'</div>'+
- '<div class="text-2xl font-bold">'+esc(c.word)+'</div><div class="text-slate-500">'+esc(c.cn)+'</div><div class="text-sm mt-2 text-slate-600">'+esc(c.sentence)+'</div></article>').join('');
+ $('preview').innerHTML=cards.map(c=>'<article class="card print-card p-5 aspect-[4/5] flex flex-col '+t+'">'+
+ '<span class="badge">A–Z CARD</span>'+
+ '<div class="flex items-start justify-between"><div class="letter">'+esc(c.letter)+'</div><button class="no-print text-xs text-slate-400 edit" data-letter="'+c.letter+'">编辑</button></div>'+
+ '<div class="art flex-1 my-3">'+(c.image?'<img src="'+c.image+'" alt="'+esc(c.word)+'">':'<div class="text-7xl">'+esc(c.emoji||emojiByWord[c.word]||'✨')+'</div>')+'</div>'+
+ '<div class="word">'+esc(c.word)+'</div><div class="cn">'+esc(c.cn)+'</div><div class="sentence mt-2">'+esc(c.sentence)+'</div></article>').join('');
  document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{sel=b.dataset.letter;renderEditor();window.scrollTo({top:0,behavior:'smooth'})});
  $('count').textContent=' · '+cards.length+' 张';
 }
