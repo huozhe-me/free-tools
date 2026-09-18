@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A-Z 字母卡制作器</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://js.puter.com/v2/"></script>
 <style>
 :root{--accent:#2563eb}
 @page{size:A4 portrait;margin:8mm}
@@ -58,6 +59,13 @@
   <input id="imageEndpoint" value="/api/image" placeholder="/api/image" class="w-full border rounded-lg p-2 text-sm mb-2">
   <button id="apiGenerate" class="w-full border rounded-lg p-2 text-sm">调用 AI API 生成内容</button><button id="genImages" class="w-full mt-2 bg-blue-600 text-white rounded-lg p-2 text-sm">批量生成图片</button><div id="imageProgress" class="text-[11px] text-slate-400 mt-2"></div><button id="allPrompts" class="w-full mt-2 border rounded-lg p-2 text-sm">生成全部图片 Prompt</button>
   <p class="text-[11px] text-slate-400 mt-2">不要把 OpenAI 等密钥放进浏览器。建议 endpoint 由你自己的 Worker/Server 代理。</p>
+ </div>
+ <div class="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-100">
+  <div class="font-semibold text-sm mb-2">Puter 直连生图（无需 API Key）</div>
+  <p class="text-[11px] text-slate-500 mb-2">直接从浏览器调用 Puter.js，不需要 Cloudflare Worker。首次使用可能要求登录/授权；AI 用量按 Puter 的用户付费模式处理。</p>
+  <button id="puterImage" class="w-full bg-blue-600 text-white rounded-lg p-2 text-sm">Puter 生成当前图片</button>
+  <button id="puterImages" class="w-full mt-2 border border-blue-200 rounded-lg p-2 text-sm">Puter 批量生成图片</button>
+  <div id="puterProgress" class="text-[11px] text-slate-400 mt-2"></div>
  </div>
  <div class="mb-3"><label class="text-sm">主题<select id="preset" class="mt-1 w-full border rounded-lg p-2"><option value="general">日常生活</option><option value="vehicle">汽车主题</option><option value="animal">动物主题</option><option value="food">食物主题</option></select></label></div>
  <div class="flex gap-2 mb-3"><button id="fill" class="flex-1 border rounded-lg p-2 text-sm">套用主题词</button><button id="copy" class="flex-1 border rounded-lg p-2 text-sm">复制上一张</button></div>
@@ -153,6 +161,38 @@ function makePrompt(c){
  const styleEn={'柔和扁平插画':'soft flat vector illustration','儿童绘本水彩':'gentle children’s picture-book watercolor','软萌卡通':'cute soft cartoon','简洁真实物体':'simple realistic object illustration'}[style];
  return styleEn+', for a toddler educational alphabet flashcard. A single '+(c.word||'object')+' ('+(c.cn||'')+') centered, full object visible, friendly and recognizable, simple composition, warm low-stimulation palette, clean light background, no letters, no words, no watermark, no border, square composition.';
 }
+async function generatePuterImage(c){
+ if(!window.puter||!puter.ai||!puter.ai.txt2img)throw new Error('Puter.js 尚未加载');
+ const prompt=c.imagePrompt||makePrompt(c);
+ const image=await puter.ai.txt2img(prompt);
+ if(!image)throw new Error('Puter 未返回图片');
+ if(image instanceof HTMLImageElement){
+   c.image=image.src;
+ }else if(image.src){
+   c.image=image.src;
+ }else{
+   throw new Error('无法读取 Puter 图片地址');
+ }
+ save();renderPreview();
+}
+async function generatePuterCurrent(){
+ const c=current();
+ c.imagePrompt=c.imagePrompt||makePrompt(c);
+ try{setStatus('Puter 正在生成 '+c.letter+'…');await generatePuterImage(c);setStatus(c.letter+' 图片生成完成');render();}catch(e){alert('Puter 生图失败：'+e.message)}
+}
+async function generatePuterImages(){
+ const todo=cards.filter(c=>c.imagePrompt&&!c.image);
+ if(!todo.length){alert('没有待生成图片。先生成 Prompt，或图片已经全部存在。');return}
+ if(!confirm('将直接调用 Puter 为 '+todo.length+' 张卡片生图。首次使用可能需要登录/授权。继续吗？'))return;
+ for(let i=0;i<todo.length;i++){
+   const c=todo[i];
+   $('puterProgress').textContent='正在生成 '+c.letter+'（'+(i+1)+'/'+todo.length+'）';
+   try{await generatePuterImage(c)}catch(e){console.error(e);setStatus(c.letter+' 图片失败：'+e.message)}
+ }
+ $('puterProgress').textContent='Puter 图片生成完成';
+ setStatus('Puter 批量图片生成完成');
+ render();
+}
 async function generateImages(){const endpoint=$('imageEndpoint').value.trim();if(!endpoint){alert('先填写图片 API Endpoint，例如 /api/image');return}const todo=cards.filter(c=>c.imagePrompt&&!c.image);if(!todo.length){alert('没有待生成图片的卡片。先生成 Prompt，或图片已经全部存在。');return}if(!confirm('将为 '+todo.length+' 张卡片调用图片 API，继续吗？'))return;for(let i=0;i<todo.length;i++){const c=todo[i];$('imageProgress').textContent='正在生成 '+c.letter+'（'+(i+1)+'/'+todo.length+'）';try{const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({letter:c.letter,word:c.word,cn:c.cn,prompt:c.imagePrompt})});if(!res.ok)throw new Error('HTTP '+res.status);const data=await res.json();if(!data.image)throw new Error('API 未返回 image');c.image=data.image;save();renderPreview()}catch(e){console.error(e);setStatus(c.letter+' 图片失败：'+e.message)}}$('imageProgress').textContent='图片生成完成';setStatus('批量图片生成完成')}
 async function callAI(){
  const endpoint=$('apiEndpoint').value.trim();if(!endpoint){alert('先填写 AI Endpoint，例如 /api/generate');return}
@@ -177,6 +217,8 @@ $('aiGenerate').onclick=generateLocal;
 $('oneClick').onclick=oneClickGenerate;
 $('apiGenerate').onclick=callAI;
 $('genImages').onclick=generateImages;
+$('puterImage').onclick=generatePuterCurrent;
+$('puterImages').onclick=generatePuterImages;
 $('allPrompts').onclick=()=>{cards.forEach(c=>c.imagePrompt=makePrompt(c));save();$('prompt').value=current().imagePrompt;setStatus('26 张图片 Prompt 已生成')};
 $('makePrompt').onclick=()=>{const c=current();c.imagePrompt=makePrompt(c);$('prompt').value=c.imagePrompt;save();setStatus('Prompt 已生成')};
 $('prompt').oninput=e=>{current().imagePrompt=e.target.value;save()};
