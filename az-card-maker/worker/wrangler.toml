@@ -1,0 +1,12 @@
+name = "az-card-maker-ai"
+main = "index.js"
+compatibility_date = "2026-09-18"
+
+[vars]
+OPENAI_MODEL = "gpt-4o-mini"
+
+# Deploy from this directory:
+# npx wrangler deploy
+#
+# Configure the secret before deploying:
+# npx wrangler secret put OPENAI_API_KEY
