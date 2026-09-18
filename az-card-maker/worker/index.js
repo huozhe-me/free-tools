@@ -2,10 +2,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
-    if (url.pathname !== "/api/generate" || request.method !== "POST") {
+    if (!["/api/generate","/api/image"].includes(url.pathname) || request.method !== "POST") {
       return cors(Response.json({ error: "Not found" }, { status: 404 }));
     }
     if (!env.OPENAI_API_KEY) return cors(Response.json({ error: "OPENAI_API_KEY is not configured" }, { status: 500 }));
+    if (url.pathname === "/api/image") return generateImage(request, env);
     try {
       const body = await request.json();
       const topic = String(body.topic || "日常生活");
@@ -38,3 +39,16 @@ sentence 简短自然，适合儿童朗读。imagePrompt 用英文，要求单�
   }
 };
 function cors(r){const h=new Headers(r.headers);h.set("Access-Control-Allow-Origin","*");h.set("Access-Control-Allow-Headers","Content-Type, Authorization");h.set("Access-Control-Allow-Methods","POST, OPTIONS");return new Response(r.body,{status:r.status,headers:h});}
+
+async function generateImage(request, env) {
+  try {
+    const body=await request.json();
+    const prompt=String(body.prompt||"");
+    if(!prompt) return cors(Response.json({error:"prompt is required"},{status:400}));
+    const r=await fetch("https://api.openai.com/v1/images/generations",{method:"POST",headers:{"Authorization":"Bearer "+env.OPENAI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({model:env.OPENAI_IMAGE_MODEL||"gpt-image-2",prompt,size:"1024x1024",n:1,output_format:"png"})});
+    if(!r.ok)return cors(Response.json({error:"Image model request failed",detail:await r.text()},{status:502}));
+    const data=await r.json(); const image=data.data?.[0]?.b64_json;
+    if(!image)throw new Error("Image model did not return b64_json");
+    return cors(Response.json({image:"data:image/png;base64,"+image}));
+  }catch(e){return cors(Response.json({error:e.message||"Image generation failed"},{status:400}));}
+}
