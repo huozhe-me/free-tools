@@ -135,6 +135,7 @@ async function callAI(){
 }
 $('aiGenerate').onclick=generateLocal;
 $('apiGenerate').onclick=callAI;
+$('allPrompts').onclick=()=>{cards.forEach(c=>c.imagePrompt=makePrompt(c));save();$('prompt').value=current().imagePrompt;setStatus('26 张图片 Prompt 已生成')};
 $('makePrompt').onclick=()=>{const c=current();c.imagePrompt=makePrompt(c);$('prompt').value=c.imagePrompt;save();setStatus('Prompt 已生成')};
 $('prompt').oninput=e=>{current().imagePrompt=e.target.value;save()};
 $('copyPrompt').onclick=async()=>{const p=$('prompt').value;if(!p)return;await navigator.clipboard.writeText(p);setStatus('Prompt 已复制')};
